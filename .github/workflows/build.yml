@@ -1,0 +1,220 @@
+name: Sky Build
+
+on:
+  # PHP 通过 GitHub API 触发（携带 brand.json 参数）
+  repository_dispatch:
+    types: [ php_build ]
+  # 手动推 tag 到本公开仓库触发正式 Release
+  push:
+    tags:
+      - 'v*'
+
+env:
+  IS_STABLE: ${{ github.event_name == 'push' && !contains(github.ref, '-') }}
+  BUILD_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || github.ref_name }}
+
+jobs:
+  # ── 1. 代码质量检查 ─────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    # 方案A：只允许仓库所有者的 token 触发（repository_dispatch 的 github.actor
+    # 是发起 API 调用的账号，push tag 的 actor 是推送者，两者都受此条件约束）
+    if: ${{ github.actor == github.repository_owner }}
+    steps:
+      # ★ 关键改动：通过 Deploy Key SSH 拉取私有仓库源码
+      - name: Checkout source (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: SKYNetApps/skapps_console   # ← 私有仓库地址
+          ssh-key: ${{ secrets.DEPLOY_KEY }}       # ← SSH 私钥（只读 Deploy Key）
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.9
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+  # ── 2. 多平台打包 ───────────────────────────────────────────────────────────
+  build:
+    needs: [ test ]
+    runs-on: ${{ matrix.os }}
+    # 方案A：双重保险（test 跳过时 build 也会跳过，此处显式重申更清晰）
+    if: ${{ github.actor == github.repository_owner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+          - platform: macos
+            os: macos-latest
+            arch: arm64
+          - platform: macos
+            os: macos-15-intel
+            arch: amd64
+          - platform: windows
+            os: Windows-2022
+            arch: amd64
+          - platform: linux
+            os: ubuntu-22.04
+            arch: amd64
+
+    steps:
+      # ★ 关键改动：通过 Deploy Key SSH 拉取私有仓库源码
+      - name: Checkout source (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: SKYNetApps/skapps_console   # ← 私有仓库地址
+          ssh-key: ${{ secrets.DEPLOY_KEY }}       # ← SSH 私钥（只读 Deploy Key）
+          submodules: recursive
+          fetch-depth: 1
+
+      # ── 从 PHP 触发的 payload 或 API 获取品牌配置 ────────────────────────
+      - name: Write brand config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo '品牌配置来自 dispatch payload'
+            echo '${{ toJSON(github.event.client_payload.brand) }}' > brands/brand.json
+          else
+            echo '品牌配置从 PHP API 拉取...'
+            HTTP_CODE=$(curl -s -o brands/brand.json -w "%{http_code}" \
+              -H "X-Build-Token: ${{ secrets.BRAND_API_TOKEN }}" \
+              -H "X-Build-Version: ${{ github.ref_name }}" \
+              "${{ secrets.BRAND_API_URL }}")
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "❌ Brand API 返回 HTTP $HTTP_CODE"
+              exit 1
+            fi
+          fi
+
+          BRAND_NAME=$(jq -r '.name // empty' brands/brand.json 2>/dev/null)
+          if [ -z "$BRAND_NAME" ]; then
+            echo "❌ brand.json 无效或缺少 name 字段"
+            exit 1
+          fi
+          echo "✅ Brand: $BRAND_NAME"
+          P7XK=$(jq -r '.p7xk // empty' brands/brand.json 2>/dev/null)
+          if [ -n "$P7XK" ]; then
+            echo "::add-mask::$P7XK"
+          fi
+
+      # ── Android: 释放磁盘空间 ─────────────────────────────────────────────
+      - name: Free Disk Space (Android only)
+        if: matrix.platform == 'android'
+        run: |
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/share/boost \
+            ~/.dotnet \
+            /opt/hostedtoolcache/CodeQL \
+            /opt/hostedtoolcache/Ruby \
+            /opt/hostedtoolcache/PyPy \
+            /opt/hostedtoolcache/Python
+          docker image prune -af 2>/dev/null || true
+          echo "=== Disk after cleanup ===" && df -h /
+
+      # ── Android 签名配置 ──────────────────────────────────────────────────
+      - name: Setup Android Signing
+        if: matrix.platform == 'android'
+        run: |
+          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/local.properties
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" >> android/local.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/local.properties
+
+      # ── 工具链 ────────────────────────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.9
+          cache: true
+
+      - name: Setup NDK
+        if: matrix.platform == 'android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28c
+          add-to-path: true
+          link-to-sdk: true
+
+      - name: Enable git long paths (Windows)
+        if: startsWith(matrix.os, 'Windows')
+        run: git config --global core.longpaths true
+
+      - name: Get Flutter dependencies
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Generate env and icons
+        run: dart run brands/gen_env.dart
+
+      - name: Build
+        run: dart setup.dart ${{ matrix.platform }} ${{ matrix.arch && format('--arch {0}', matrix.arch) || '' }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
+          path: ./dist
+          overwrite: true
+
+  # ── 3. 发布 Release（在公开仓库创建，用户可直接下载）──────────────────────
+  release:
+    name: Create Release
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist/
+          pattern: artifact-*
+          merge-multiple: true
+
+      - name: Generate SHA256
+        run: |
+          cd ./dist
+          sha256sum * > SHA256SUMS
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./dist/*
+          body: |
+            ## ${{ env.BUILD_VERSION }}
+
+            ## 下载说明
+            | 文件 | 平台 |
+            |------|------|
+            | `*-android-arm64-v8a.apk` | Android (主流设备) |
+            | `*-android-armeabi-v7a.apk` | Android (旧设备) |
+            | `*-macos-arm64.dmg` | macOS Apple Silicon |
+            | `*-macos-amd64.dmg` | macOS Intel |
+            | `*-windows-amd64.exe` | Windows |
+            | `*-linux-amd64.deb` | Linux (Debian/Ubuntu) |
+            | `*-linux-amd64.rpm` | Linux (RedHat/Fedora) |
+            | `SHA256SUMS` | 校验文件 |
