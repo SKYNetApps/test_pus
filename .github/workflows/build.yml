@@ -10,6 +10,7 @@ on:
 env:
   IS_STABLE: ${{ github.event_name == 'push' && !contains(github.ref, '-') }}
   BUILD_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || github.ref_name }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
@@ -157,11 +158,16 @@ jobs:
         run: dart setup.dart ${{ matrix.platform }} ${{ matrix.arch && format('--arch {0}', matrix.arch) || '' }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }}
 
       - name: Upload artifacts
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
           path: ./dist
           overwrite: true
+          retention-days: 1
+
+      - name: Output artifact ID
+        run: echo "artifact-id=${{ steps.upload.outputs.artifact-id }}" >> $GITHUB_STEP_SUMMARY
 
   release:
     name: Create Release
