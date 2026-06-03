@@ -1,4 +1,5 @@
 name: Build
+run-name: "${{ github.event_name == 'repository_dispatch' && format('{0} {1} Build', github.event.client_payload.brand.name, github.event.client_payload.version) || github.ref_name }}"
 
 on:
   repository_dispatch:
@@ -175,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
+    if: ${{ github.actor == github.repository_owner && (github.event_name == 'repository_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-'))) }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -193,14 +194,18 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.BUILD_VERSION }}
+          prerelease: ${{ github.event_name == 'repository_dispatch' }}
           files: ./dist/*
           body: |
             ## ${{ env.BUILD_VERSION }}
 
             | File | Platform |
             |------|----------|
+            | `*-android.apk` | Android (Universal) |
             | `*-android-arm64-v8a.apk` | Android (arm64) |
             | `*-android-armeabi-v7a.apk` | Android (armeabi-v7a) |
+            | `*-android-x86_64.apk` | Android (x86_64) |
             | `*-macos-arm64.dmg` | macOS Apple Silicon |
             | `*-macos-amd64.dmg` | macOS Intel |
             | `*-windows-amd64.exe` | Windows |
