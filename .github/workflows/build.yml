@@ -13,6 +13,8 @@ env:
   BUILD_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || github.ref_name }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+
+
 jobs:
   test:
     name: Test
@@ -170,6 +172,10 @@ jobs:
     needs: [ build ]
     runs-on: ubuntu-latest
     if: ${{ github.actor == github.repository_owner }}   # 与 build job 保持一致
+    # 只在 ftp-deploy job 级别串行，不影响 build 矩阵并行
+    concurrency:
+      group: ftp-deploy-${{ github.repository }}
+      cancel-in-progress: false
     permissions:
       actions: write   # 删除 artifact 需要此权限
 
@@ -185,29 +191,108 @@ jobs:
       - name: List downloaded files
         run: ls -lhR ./dist/
 
-      # ── FTP 上传（按 build_{runId}_{datetime} 归档目录）─────────────────
+      # ── FTP 上传（curl 逐文件，无需开放被动端口范围）──────────────────
       - name: Upload to FTP
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}   # 默认 21 端口
+          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
         run: |
-          sudo apt-get install -y lftp
-
           UPLOAD_DIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
           echo "上传目录: /$UPLOAD_DIR/"
 
-          lftp -u "$FTP_USER","$FTP_PASS" "ftp://$FTP_HOST:$FTP_PORT" <<-FTPEOF
-          set ftp:ssl-allow no
-          set ftp:passive-mode yes
-          set net:timeout 30
-          set net:max-retries 3
-          mirror -R ./dist/ /$UPLOAD_DIR/
-          bye
-          FTPEOF
+          # ── 连通性预检 ──────────────────────────────────────────────
+          echo "测试 FTP 控制连接..."
+          if ! timeout 10 bash -c "echo > /dev/tcp/$FTP_HOST/$FTP_PORT" 2>/dev/null; then
+            echo "❌ 无法连接 $FTP_HOST:$FTP_PORT，请检查 FTP 服务器和防火墙"
+            exit 1
+          fi
+          echo "✅ FTP 控制端口可达"
 
-          echo "✅ FTP 上传完成: /$UPLOAD_DIR/"
+          # ── curl 逐文件上传（主动模式，不依赖服务器被动端口）───────────
+          FAIL=0
+          while IFS= read -r file; do
+            rel="${file#./dist/}"
+            remote_url="ftp://$FTP_HOST:$FTP_PORT/$UPLOAD_DIR/$rel"
+
+            echo "  ↑ $rel"
+            if ! curl --silent --show-error \
+              --ftp-create-dirs \
+              --connect-timeout 15 \
+              --retry 3 \
+              --retry-delay 2 \
+              -u "$FTP_USER:$FTP_PASS" \
+              -T "$file" \
+              "$remote_url"; then
+              echo "  ❌ 上传失败: $rel"
+              FAIL=1
+            fi
+          done < <(find ./dist -type f | sort)
+
+          if [ "$FAIL" = "1" ]; then
+            echo "❌ 部分文件上传失败"
+            exit 1
+          fi
+
+          echo "✅ FTP 上传完成，目录: /$UPLOAD_DIR/"
+          # 传递给后续 step
+          echo "UPLOAD_DIR=$UPLOAD_DIR" >> "$GITHUB_ENV"
+
+      # ── 回写 ftp_builds.json（追加记录，保留最近 20 条，带重试防 409）──
+      - name: Update ftp_builds.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_ENTRY=$(jq -cn \
+            --arg dir  "$UPLOAD_DIR" \
+            --arg run  "${{ github.run_id }}" \
+            --arg ver  "${{ env.BUILD_VERSION }}" \
+            --arg time "$(date -u +'%Y-%m-%d %H:%M:%S')" \
+            '{dir: $dir, run_id: $run, version: $ver, uploaded_at: $time}')
+
+          # 最多重试 5 次，应对并发写入时的 409 Conflict
+          for i in $(seq 1 5); do
+            # 读取当前文件内容和 SHA
+            RESP=$(gh api "repos/${{ github.repository }}/contents/ftp_builds.json" 2>/dev/null || echo '{}')
+            EXISTING_SHA=$(echo "$RESP" | jq -r '.sha // empty')
+            EXISTING_B64=$(echo "$RESP" | jq -r '.content // empty' | tr -d '\n')
+
+            if [ -n "$EXISTING_B64" ]; then
+              EXISTING_ARR=$(echo "$EXISTING_B64" | base64 -d 2>/dev/null || echo '[]')
+            else
+              EXISTING_ARR='[]'
+            fi
+
+            # 追加新记录，保留最近 20 条（最新在前）
+            NEW_ARR=$(echo "$EXISTING_ARR" | jq --argjson e "$NEW_ENTRY" \
+              '[$e] + . | unique_by(.run_id) | .[0:20]')
+
+            ENCODED=$(echo "$NEW_ARR" | base64 -w 0)
+
+            if [ -n "$EXISTING_SHA" ]; then
+              HTTP=$(gh api --method PUT \
+                "repos/${{ github.repository }}/contents/ftp_builds.json" \
+                -f message="chore: update ftp_builds [skip ci]" \
+                -f content="$ENCODED" \
+                -f sha="$EXISTING_SHA" \
+                --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
+            else
+              HTTP=$(gh api --method PUT \
+                "repos/${{ github.repository }}/contents/ftp_builds.json" \
+                -f message="chore: init ftp_builds [skip ci]" \
+                -f content="$ENCODED" \
+                --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
+            fi
+
+            if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
+              echo "✅ ftp_builds.json 更新成功（第 $i 次尝试）"
+              break
+            fi
+
+            echo "⚠️ 写入失败（HTTP $HTTP），${i}/5，1秒后重试..."
+            sleep 1
+          done
 
       # ── 上传成功后删除 GitHub artifact（避免存储收费）──────────────────
       - name: Delete artifacts from GitHub
