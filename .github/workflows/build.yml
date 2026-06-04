@@ -164,3 +164,72 @@ jobs:
       - name: Output artifact ID
         run: echo "artifact-id=${{ steps.upload.outputs.artifact-id }}" >> $GITHUB_STEP_SUMMARY
 
+  # ── FTP 上传 & 清理 artifact ───────────────────────────────────────────────
+  ftp-deploy:
+    name: FTP Upload & Cleanup
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == github.repository_owner }}   # 与 build job 保持一致
+    permissions:
+      actions: write   # 删除 artifact 需要此权限
+
+    steps:
+      # ── 下载本次全部平台的 artifact ──────────────────────────────────────
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist/
+          pattern: artifact-*
+          merge-multiple: false   # 保留各平台子目录
+
+      - name: List downloaded files
+        run: ls -lhR ./dist/
+
+      # ── FTP 上传（按 build_{runId}_{datetime} 归档目录）─────────────────
+      - name: Upload to FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}   # 默认 21 端口
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          sudo apt-get install -y lftp
+
+          UPLOAD_DIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
+          echo "上传目录: /$UPLOAD_DIR/"
+
+          lftp -u "$FTP_USER","$FTP_PASS" "ftp://$FTP_HOST:$FTP_PORT" <<-FTPEOF
+          set ftp:ssl-allow no
+          set ftp:passive-mode yes
+          set net:timeout 30
+          set net:max-retries 3
+          mirror -R ./dist/ /$UPLOAD_DIR/
+          bye
+          FTPEOF
+
+          echo "✅ FTP 上传完成: /$UPLOAD_DIR/"
+
+      # ── 上传成功后删除 GitHub artifact（避免存储收费）──────────────────
+      - name: Delete artifacts from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "查询本次 run 的 artifact..."
+          ARTIFACTS=$(gh api \
+            "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            --jq '.artifacts[].id')
+
+          if [ -z "$ARTIFACTS" ]; then
+            echo "⚠️ 没有找到 artifact，跳过"
+            exit 0
+          fi
+
+          for AID in $ARTIFACTS; do
+            echo "删除 artifact id=$AID ..."
+            gh api --method DELETE \
+              "repos/${{ github.repository }}/actions/artifacts/$AID" && \
+              echo "  ✅ 已删除 $AID" || \
+              echo "  ❌ 删除 $AID 失败（跳过）"
+          done
+
+          echo "🎉 artifact 清理完成"
