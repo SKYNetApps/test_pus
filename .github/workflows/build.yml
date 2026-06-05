@@ -216,15 +216,22 @@ jobs:
           fi
           echo "✅ SSH 控制端口可达"
 
-          # 在远端创建目标目录（使用 sshpass 读取环境变量 SSHPASS）
+          # 在远端创建顶层目录
           sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p \"$UPLOAD_DIR\""
+
+          # 预先创建所有子目录（一次 ssh，减少连接次数）
+          SUBDIRS=$(find ./dist -mindepth 1 -type d | sed "s|./dist/||" | sort -u)
+          if [ -n "$SUBDIRS" ]; then
+            MKDIR_CMD=$(echo "$SUBDIRS" | awk -v base="$UPLOAD_DIR" '{print "mkdir -p \"" base "/" $0 "\""}' | tr '\n' ';')
+            sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$MKDIR_CMD"
+          fi
 
           # 逐文件上传
           FAIL=0
           while IFS= read -r file; do
             rel="${file#./dist/}"
             echo "  ↑ $rel"
-            if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no "$file" "$SSH_USER@$SSH_HOST:\"$UPLOAD_DIR/$rel\""; then
+            if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no "$file" "$SSH_USER@$SSH_HOST:$UPLOAD_DIR/$rel"; then
               echo "  ❌ 上传失败: $rel"
               FAIL=1
             fi
