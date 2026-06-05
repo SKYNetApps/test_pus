@@ -166,15 +166,15 @@ jobs:
       - name: Output artifact ID
         run: echo "artifact-id=${{ steps.upload.outputs.artifact-id }}" >> $GITHUB_STEP_SUMMARY
 
-  # ── FTP 上传 & 清理 artifact ───────────────────────────────────────────────
-  ftp-deploy:
-    name: FTP Upload & Cleanup
+  # ── SSH 上传 & Cleanup ───────────────────────────────────────────────
+  ssh-deploy:
+    name: SSH Upload & Cleanup
     needs: [ build ]
     runs-on: ubuntu-latest
     if: ${{ github.actor == github.repository_owner }}   # 与 build job 保持一致
-    # 只在 ftp-deploy job 级别串行，不影响 build 矩阵并行
+    # 只在 ssh-deploy job 级别串行，不影响 build 矩阵并行
     concurrency:
-      group: ftp-deploy-${{ github.repository }}
+      group: ssh-deploy-${{ github.repository }}
       cancel-in-progress: false
     permissions:
       actions: write   # 删除 artifact 需要此权限
@@ -191,40 +191,47 @@ jobs:
       - name: List downloaded files
         run: ls -lhR ./dist/
 
-      # ── FTP 上传（curl 逐文件，无需开放被动端口范围）──────────────────
-      - name: Upload to FTP
+      - name: Install sshpass (ensure SSH upload works)
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      # ── SSH 上传（sshpass + scp）──────────────────
+      - name: Upload via SSH
         env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_PORT: ${{ secrets.FTP_PORT || '21' }}
-          FTP_USER: ${{ secrets.FTP_USER }}
-          FTP_PASS: ${{ secrets.FTP_PASS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          # 若使用 Base64 编码的密码请使用 SSH_PASSWORD_B64，否则使用 SSH_PASSWORD
+          SSH_PASSWORD_B64: ${{ secrets.SSH_PASSWORD_B64 }}
         run: |
+          # ------- 密码准备 -------
+          if [ -n "$SSH_PASSWORD_B64" ]; then
+            # Base64 编码的密码
+            export SSHPASS="$(echo \"$SSH_PASSWORD_B64\" | base64 -d)"
+          else
+            # 明文密码（直接存入 secret）
+            export SSHPASS="${{ secrets.SSH_PASSWORD }}"
+          fi
+
           UPLOAD_DIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
-          echo "上传目录: /$UPLOAD_DIR/"
+          echo "上传目录: $UPLOAD_DIR"
 
           # ── 连通性预检 ──────────────────────────────────────────────
-          echo "测试 FTP 控制连接..."
-          if ! timeout 10 bash -c "echo > /dev/tcp/$FTP_HOST/$FTP_PORT" 2>/dev/null; then
-            echo "❌ 无法连接 $FTP_HOST:$FTP_PORT，请检查 FTP 服务器和防火墙"
+          echo "测试 SSH 控制连接..."
+          if ! timeout 10 bash -c "echo > /dev/tcp/$SSH_HOST/$SSH_PORT" 2>/dev/null; then
+            echo "❌ 无法连接 $SSH_HOST:$SSH_PORT，请检查 SSH 服务器和防火墙"
             exit 1
           fi
-          echo "✅ FTP 控制端口可达"
+          echo "✅ SSH 控制端口可达"
 
-          # ── curl 逐文件上传（主动模式，不依赖服务器被动端口）───────────
+          # 在远端创建目标目录（使用 sshpass 读取环境变量 SSHPASS）
+          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p \"$UPLOAD_DIR\""
+
+          # 逐文件上传
           FAIL=0
           while IFS= read -r file; do
             rel="${file#./dist/}"
-            remote_url="ftp://$FTP_HOST:$FTP_PORT/$UPLOAD_DIR/$rel"
-
             echo "  ↑ $rel"
-            if ! curl --silent --show-error \
-              --ftp-create-dirs \
-              --connect-timeout 15 \
-              --retry 3 \
-              --retry-delay 2 \
-              -u "$FTP_USER:$FTP_PASS" \
-              -T "$file" \
-              "$remote_url"; then
+            if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no "$file" "$SSH_USER@$SSH_HOST:\"$UPLOAD_DIR/$rel\""; then
               echo "  ❌ 上传失败: $rel"
               FAIL=1
             fi
@@ -235,12 +242,14 @@ jobs:
             exit 1
           fi
 
-          echo "✅ FTP 上传完成，目录: /$UPLOAD_DIR/"
+          echo "✅ SSH 上传完成，目录: $UPLOAD_DIR"
           # 传递给后续 step
           echo "UPLOAD_DIR=$UPLOAD_DIR" >> "$GITHUB_ENV"
+          # 清理密码变量，防止后续泄漏
+          unset SSHPASS
 
-      # ── 回写 ftp_builds.json（追加记录，保留最近 20 条，带重试防 409）──
-      - name: Update ftp_builds.json
+      # ── 回写 deploy_builds.json（追加记录，保留最近 20 条，带重试防 409）──
+      - name: Update deploy_builds.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -254,7 +263,7 @@ jobs:
           # 最多重试 5 次，应对并发写入时的 409 Conflict
           for i in $(seq 1 5); do
             # 读取当前文件内容和 SHA
-            RESP=$(gh api "repos/${{ github.repository }}/contents/ftp_builds.json" 2>/dev/null || echo '{}')
+            RESP=$(gh api "repos/${{ github.repository }}/contents/deploy_builds.json" 2>/dev/null || echo '{}')
             EXISTING_SHA=$(echo "$RESP" | jq -r '.sha // empty')
             EXISTING_B64=$(echo "$RESP" | jq -r '.content // empty' | tr -d '\n')
 
@@ -272,21 +281,21 @@ jobs:
 
             if [ -n "$EXISTING_SHA" ]; then
               HTTP=$(gh api --method PUT \
-                "repos/${{ github.repository }}/contents/ftp_builds.json" \
-                -f message="chore: update ftp_builds [skip ci]" \
+                "repos/${{ github.repository }}/contents/deploy_builds.json" \
+                -f message="chore: update deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
                 -f sha="$EXISTING_SHA" \
                 --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
             else
               HTTP=$(gh api --method PUT \
-                "repos/${{ github.repository }}/contents/ftp_builds.json" \
-                -f message="chore: init ftp_builds [skip ci]" \
+                "repos/${{ github.repository }}/contents/deploy_builds.json" \
+                -f message="chore: init deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
                 --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
             fi
 
             if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
-              echo "✅ ftp_builds.json 更新成功（第 $i 次尝试）"
+              echo "✅ deploy_builds.json 更新成功（第 $i 次尝试）"
               break
             fi
 
