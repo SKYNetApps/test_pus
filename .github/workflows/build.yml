@@ -260,12 +260,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 收集本次上传的文件相对路径列表
+          FILES=$(find ./dist -type f | sed "s|./dist/||" | sort | jq -R . | jq -s .)
           NEW_ENTRY=$(jq -cn \
-            --arg dir  "$UPLOAD_SUBDIR" \
-            --arg run  "${{ github.run_id }}" \
-            --arg ver  "${{ env.BUILD_VERSION }}" \
-            --arg time "$(date -u +'%Y-%m-%d %H:%M:%S')" \
-            '{dir: $dir, run_id: $run, version: $ver, uploaded_at: $time}')
+            --arg  dir  "$UPLOAD_SUBDIR" \
+            --arg  run  "${{ github.run_id }}" \
+            --arg  ver  "${{ env.BUILD_VERSION }}" \
+            --arg  time "$(date -u +'%Y-%m-%d %H:%M:%S')" \
+            --argjson files "$FILES" \
+            '{dir: $dir, run_id: $run, version: $ver, uploaded_at: $time, files: $files}')
 
           # 最多重试 5 次，应对并发写入时的 409 Conflict
           for i in $(seq 1 5); do
