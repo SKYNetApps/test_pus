@@ -227,8 +227,9 @@ jobs:
           for d in $SUBDIRS; do
             ALL_DIRS="$ALL_DIRS','${UPLOAD_DIR}/${d}"
           done
-          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "powershell -Command \"\$dirs='${ALL_DIRS}'.Split(','); foreach(\$d in \$dirs){ New-Item -ItemType Directory -Force -Path \$d | Out-Null }\""
+          # 用 printf 构造 PowerShell 命令，避免 bash 在双引号中提前展开 $d
+          PS_MKDIR=$(printf "powershell -Command \"\$dirs='%s'.Split(','); foreach(\$d in \$dirs){ New-Item -ItemType Directory -Force -Path \$d | Out-Null }\"" "$ALL_DIRS")
+          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_MKDIR"
 
           # 逐文件上传
           FAIL=0
@@ -248,8 +249,9 @@ jobs:
           fi
 
           echo "✅ SSH 上传完成，目录: $UPLOAD_DIR"
-          # 传递给后续 step
+          # 传递给后续 step（两个变量都传递）
           echo "UPLOAD_DIR=$UPLOAD_DIR" >> "$GITHUB_ENV"
+          echo "UPLOAD_SUBDIR=$UPLOAD_SUBDIR" >> "$GITHUB_ENV"
           # 清理密码变量，防止后续泄漏
           unset SSHPASS
 
