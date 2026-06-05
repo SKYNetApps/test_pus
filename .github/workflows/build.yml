@@ -51,11 +51,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - platform: android      # 测试期间暂时屏蔽
-          #   os: ubuntu-latest
-          # - platform: windows      # 测试期间暂时屏蔽
-          #   os: Windows-2022
-          #   arch: amd64
+          - platform: android
+            os: ubuntu-latest
+          - platform: windows
+            os: Windows-2022
+            arch: amd64
           - platform: linux
             os: ubuntu-22.04
             arch: amd64
