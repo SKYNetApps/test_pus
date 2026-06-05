@@ -208,8 +208,9 @@ jobs:
           export SSHPASS="$SSH_PASSWORD"
 
           UPLOAD_SUBDIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
-          # 拼接绝对路径（Windows 反斜杠）
-          UPLOAD_DIR="${SSH_REMOTE_BASE}\\${UPLOAD_SUBDIR}"
+          # 统一使用正斜杠（PowerShell 完全支持，避免多层转义问题）
+          BASE="${SSH_REMOTE_BASE%/}"   # 去掉末尾斜杠
+          UPLOAD_DIR="${BASE}/${UPLOAD_SUBDIR}"
           echo "上传目录: $UPLOAD_DIR"
 
           # ── 连通性预检 ──────────────────────────────────────────────
@@ -220,28 +221,22 @@ jobs:
           fi
           echo "✅ SSH 控制端口可达"
 
-          # 在远端创建顶层目录（Windows OpenSSH 使用 PowerShell）
-          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "powershell -Command \"New-Item -ItemType Directory -Force -Path '$UPLOAD_DIR' | Out-Null\""
-
-          # 预先创建所有子目录（一次 ssh）
+          # 在远端一次性创建所有目录（包含子目录）
           SUBDIRS=$(find ./dist -mindepth 1 -type d | sed "s|./dist/||" | sort -u)
-          if [ -n "$SUBDIRS" ]; then
-            PS_CMD=$(echo "$SUBDIRS" | awk -v base="$UPLOAD_DIR" \
-              '{print "New-Item -ItemType Directory -Force -Path \"" base "\\" $0 "\" | Out-Null"}' \
-              | tr '\n' ';')
-            sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-              "powershell -Command \"$PS_CMD\""
-          fi
+          ALL_DIRS="$UPLOAD_DIR"
+          for d in $SUBDIRS; do
+            ALL_DIRS="$ALL_DIRS','${UPLOAD_DIR}/${d}"
+          done
+          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "powershell -Command \"\$dirs='${ALL_DIRS}'.Split(','); foreach(\$d in \$dirs){ New-Item -ItemType Directory -Force -Path \$d | Out-Null }\""
 
-          # 逐文件上传（Windows 路径用反斜杠）
+          # 逐文件上传
           FAIL=0
           while IFS= read -r file; do
             rel="${file#./dist/}"
-            rel_win="${rel//\//\\}"   # 正斜杠 → 反斜杠
             echo "  ↑ $rel"
             if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no \
-                "$file" "$SSH_USER@$SSH_HOST:$UPLOAD_DIR\\$rel_win"; then
+                "$file" "$SSH_USER@$SSH_HOST:$UPLOAD_DIR/$rel"; then
               echo "  ❌ 上传失败: $rel"
               FAIL=1
             fi
