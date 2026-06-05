@@ -177,7 +177,8 @@ jobs:
       group: ssh-deploy-${{ github.repository }}
       cancel-in-progress: false
     permissions:
-      actions: write   # 删除 artifact 需要此权限
+      actions: write    # 删除 artifact 需要此权限
+      contents: write   # 写入 deploy_builds.json 需要此权限
 
     steps:
       # ── 下载本次全部平台的 artifact ──────────────────────────────────────
