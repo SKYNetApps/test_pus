@@ -202,7 +202,6 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
-          # 远端绝对基础路径，例如 C:/wwwroot/file.skynetwork.one
           SSH_REMOTE_BASE: ${{ secrets.SSH_REMOTE_BASE }}
         run: |
           # ------- 密码准备 -------
