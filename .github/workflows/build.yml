@@ -11,6 +11,7 @@ on:
 env:
   IS_STABLE: ${{ github.event_name == 'push' && !contains(github.ref, '-') }}
   BUILD_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || github.ref_name }}
+  BUILD_ID: ${{ github.event.client_payload.build_id || '' }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 
@@ -266,9 +267,10 @@ jobs:
             --arg  dir  "$UPLOAD_SUBDIR" \
             --arg  run  "${{ github.run_id }}" \
             --arg  ver  "${{ env.BUILD_VERSION }}" \
+            --arg  bid  "${{ env.BUILD_ID }}" \
             --arg  time "$(date -u +'%Y-%m-%d %H:%M:%S')" \
             --argjson files "$FILES" \
-            '{dir: $dir, run_id: $run, version: $ver, uploaded_at: $time, files: $files}')
+            '{dir: $dir, run_id: $run, version: $ver, build_id: $bid, uploaded_at: $time, files: $files}')
 
           # 最多重试 5 次，应对并发写入时的 409 Conflict
           for i in $(seq 1 5); do
