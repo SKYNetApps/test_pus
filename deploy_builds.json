@@ -4,5 +4,15 @@
     "run_id": "26992841788",
     "version": "v3.0.3",
     "uploaded_at": "2026-06-05 03:11:54"
+  },
+  {
+    "dir": "build_26993524170_20260605_033406",
+    "run_id": "26993524170",
+    "version": "v3.0.3",
+    "uploaded_at": "2026-06-05 03:34:18",
+    "files": [
+      "artifact-linux-amd64/SkyNetwork-3.0.3-linux-amd64.deb",
+      "artifact-linux-amd64/SkyNetwork-3.0.3-linux-amd64.rpm"
+    ]
   }
 ]
