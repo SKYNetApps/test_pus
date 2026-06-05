@@ -201,11 +201,15 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          # 远端绝对基础路径，例如 C:/wwwroot/file.skynetwork.one
+          SSH_REMOTE_BASE: ${{ secrets.SSH_REMOTE_BASE }}
         run: |
           # ------- 密码准备 -------
           export SSHPASS="$SSH_PASSWORD"
 
-          UPLOAD_DIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
+          UPLOAD_SUBDIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
+          # 拼接绝对路径（Windows 反斜杠）
+          UPLOAD_DIR="${SSH_REMOTE_BASE}\\${UPLOAD_SUBDIR}"
           echo "上传目录: $UPLOAD_DIR"
 
           # ── 连通性预检 ──────────────────────────────────────────────
@@ -260,7 +264,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_ENTRY=$(jq -cn \
-            --arg dir  "$UPLOAD_DIR" \
+            --arg dir  "$UPLOAD_SUBDIR" \
             --arg run  "${{ github.run_id }}" \
             --arg ver  "${{ env.BUILD_VERSION }}" \
             --arg time "$(date -u +'%Y-%m-%d %H:%M:%S')" \
@@ -291,13 +295,13 @@ jobs:
                 -f message="chore: update deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
                 -f sha="$EXISTING_SHA" \
-                --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
+                --silent --include 2>&1 | head -1 | awk '{print $2}' || echo '0')
             else
               HTTP=$(gh api --method PUT \
                 "repos/${{ github.repository }}/contents/deploy_builds.json" \
                 -f message="chore: init deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
-                --silent --include 2>&1 | head -1 | grep -oP '(?<=HTTP/\S+ )\d+' || echo '0')
+                --silent --include 2>&1 | head -1 | awk '{print $2}' || echo '0')
             fi
 
             if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
