@@ -200,17 +200,10 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
-          # 若使用 Base64 编码的密码请使用 SSH_PASSWORD_B64，否则使用 SSH_PASSWORD
-          SSH_PASSWORD_B64: ${{ secrets.SSH_PASSWORD_B64 }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           # ------- 密码准备 -------
-          if [ -n "$SSH_PASSWORD_B64" ]; then
-            # Base64 编码的密码
-            export SSHPASS="$(echo \"$SSH_PASSWORD_B64\" | base64 -d)"
-          else
-            # 明文密码（直接存入 secret）
-            export SSHPASS="${{ secrets.SSH_PASSWORD }}"
-          fi
+          export SSHPASS="$SSH_PASSWORD"
 
           UPLOAD_DIR="build_${{ github.run_id }}_$(date +'%Y%m%d_%H%M%S')"
           echo "上传目录: $UPLOAD_DIR"
