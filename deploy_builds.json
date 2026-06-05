@@ -14,5 +14,16 @@
       "artifact-linux-amd64/SkyNetwork-3.0.3-linux-amd64.deb",
       "artifact-linux-amd64/SkyNetwork-3.0.3-linux-amd64.rpm"
     ]
+  },
+  {
+    "dir": "build_26996527479_20260605_051034",
+    "run_id": "26996527479",
+    "version": "v3.0.4",
+    "build_id": "f4ffda0ffaf6522e",
+    "uploaded_at": "2026-06-05 05:10:46",
+    "files": [
+      "artifact-linux-amd64/SkyNetwork-3.0.4-linux-amd64.deb",
+      "artifact-linux-amd64/SkyNetwork-3.0.4-linux-amd64.rpm"
+    ]
   }
 ]
