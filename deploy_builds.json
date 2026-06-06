@@ -57,5 +57,20 @@
       "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.deb",
       "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.rpm"
     ]
+  },
+  {
+    "dir": "build_27062016836_20260606_123010",
+    "run_id": "27062016836",
+    "version": "v3.0.0",
+    "build_id": "af923d5cc0de6970",
+    "uploaded_at": "2026-06-06 12:30:55",
+    "files": [
+      "artifact-android/Test-slvid-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/Test-slvid-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/Test-slvid-3.0.0-android-x86_64.apk",
+      "artifact-android/Test-slvid-3.0.0-android.apk",
+      "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.rpm"
+    ]
   }
 ]
