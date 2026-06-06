@@ -42,5 +42,20 @@
       "artifact-windows-amd64/SkyNetworkApp-3.0.0-windows-amd64-setup.exe",
       "artifact-windows-amd64/SkyNetworkApp-3.0.0-windows-amd64.zip"
     ]
+  },
+  {
+    "dir": "build_27058547543_20260606_093630",
+    "run_id": "27058547543",
+    "version": "v3.0.0",
+    "build_id": "568969f9bad6763c",
+    "uploaded_at": "2026-06-06 09:37:21",
+    "files": [
+      "artifact-android/Test-slvid-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/Test-slvid-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/Test-slvid-3.0.0-android-x86_64.apk",
+      "artifact-android/Test-slvid-3.0.0-android.apk",
+      "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/Test-slvid-3.0.0-linux-amd64.rpm"
+    ]
   }
 ]
