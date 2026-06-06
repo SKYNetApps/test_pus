@@ -179,6 +179,22 @@ jobs:
       - name: Output artifact ID
         run: echo "artifact-id=${{ steps.upload.outputs.artifact-id }}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Cleanup build icon from repo
+        if: matrix.platform == 'android' && env.BUILD_ID != ''
+        shell: bash
+        run: |
+          ICON_FILE="brands/app_${{ env.BUILD_ID }}.png"
+          if [ -f "$ICON_FILE" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git rm "$ICON_FILE"
+            git commit -m "chore: cleanup build icon [${{ env.BUILD_ID }}] [skip ci]"
+            git push origin HEAD:main || echo "⚠️ push 失败（可能已被其他 job 清理）"
+            echo "✅ 已清理 $ICON_FILE"
+          else
+            echo "⚠️ $ICON_FILE 不存在，跳过清理"
+          fi
+
   # ── SSH 上传 & Cleanup ───────────────────────────────────────────────
   ssh-deploy:
     name: SSH Upload & Cleanup
