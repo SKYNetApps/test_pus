@@ -12,7 +12,6 @@ env:
   IS_STABLE: ${{ (github.event_name == 'push' && !contains(github.ref, '-')) || github.event_name == 'repository_dispatch' }}
   BUILD_VERSION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.version || github.ref_name }}
   BUILD_ID: ${{ github.event.client_payload.build_id || '' }}
-  ICON_SHA: ${{ github.event.client_payload.icon_sha || '' }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 
@@ -68,7 +67,7 @@ jobs:
           repository: SKYNetApps/skapps_console
           ssh-key: ${{ secrets.DEPLOY_KEY }}
           submodules: recursive
-          fetch-depth: 50
+          fetch-depth: 1
 
       - name: Write brand config
         shell: bash
@@ -150,13 +149,17 @@ jobs:
           flutter --version
           flutter pub get
 
-      - name: Restore app icon at exact commit
-        if: env.ICON_SHA != ''
+      - name: Restore app icon for this build
+        if: env.BUILD_ID != ''
         shell: bash
         run: |
-          # fetch-depth: 50 已包含图标 push 的 commit，直接 git show 即可
-          git show ${{ env.ICON_SHA }}:brands/app.png > brands/app.png
-          echo "✅ 已用 SHA ${{ env.ICON_SHA }} 恢复 brands/app.png"
+          ICON_FILE="brands/app_${{ env.BUILD_ID }}.png"
+          if [ -f "$ICON_FILE" ]; then
+            cp "$ICON_FILE" brands/app.png
+            echo "✅ 已恢复 $ICON_FILE → brands/app.png"
+          else
+            echo "⚠️ $ICON_FILE 不存在，使用默认 brands/app.png"
+          fi
 
       - name: Generate env and icons
         run: dart run brands/gen_env.dart
