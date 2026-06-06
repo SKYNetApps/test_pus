@@ -144,6 +144,10 @@ jobs:
         if: startsWith(matrix.os, 'Windows')
         run: git config --global core.longpaths true
 
+      - name: Install Inno Setup (Windows)
+        if: matrix.platform == 'windows'
+        run: choco install innosetup -y
+
       - name: Get Flutter dependencies
         run: |
           flutter --version
