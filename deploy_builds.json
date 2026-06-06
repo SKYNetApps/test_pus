@@ -25,5 +25,22 @@
       "artifact-linux-amd64/SkyNetwork-3.0.4-linux-amd64.deb",
       "artifact-linux-amd64/SkyNetwork-3.0.4-linux-amd64.rpm"
     ]
+  },
+  {
+    "dir": "build_27053280114_20260606_051633",
+    "run_id": "27053280114",
+    "version": "v3.0.0",
+    "build_id": "7124a4241085f036",
+    "uploaded_at": "2026-06-06 05:17:23",
+    "files": [
+      "artifact-android/SkyNetworkApp-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/SkyNetworkApp-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/SkyNetworkApp-3.0.0-android-x86_64.apk",
+      "artifact-android/SkyNetworkApp-3.0.0-android.apk",
+      "artifact-linux-amd64/SkyNetworkApp-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/SkyNetworkApp-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/SkyNetworkApp-3.0.0-windows-amd64-setup.exe",
+      "artifact-windows-amd64/SkyNetworkApp-3.0.0-windows-amd64.zip"
+    ]
   }
 ]
