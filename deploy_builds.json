@@ -197,5 +197,21 @@
       "artifact-linux-amd64/Sky-3.0.1-linux-amd64.rpm",
       "artifact-windows-amd64/Sky-3.0.1-windows-amd64-setup.exe"
     ]
+  },
+  {
+    "dir": "build_27142544350_20260608_141044",
+    "run_id": "27142544350",
+    "version": "v3.0.2",
+    "build_id": "1f37c57302ed380f",
+    "uploaded_at": "2026-06-08 14:11:28",
+    "files": [
+      "artifact-android/Sky-3.0.2-android-arm64-v8a.apk",
+      "artifact-android/Sky-3.0.2-android-armeabi-v7a.apk",
+      "artifact-android/Sky-3.0.2-android-x86_64.apk",
+      "artifact-android/Sky-3.0.2-android.apk",
+      "artifact-linux-amd64/Sky-3.0.2-linux-amd64.deb",
+      "artifact-linux-amd64/Sky-3.0.2-linux-amd64.rpm",
+      "artifact-windows-amd64/Sky-3.0.2-windows-amd64-setup.exe"
+    ]
   }
 ]
