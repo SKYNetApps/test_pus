@@ -133,5 +133,21 @@
       "artifact-linux-amd64/Test-slvid-3.0.1-linux-amd64.rpm",
       "artifact-windows-amd64/Test-slvid-3.0.1-windows-amd64-setup.exe"
     ]
+  },
+  {
+    "dir": "build_27113352129_20260608_031033",
+    "run_id": "27113352129",
+    "version": "v3.0.0",
+    "build_id": "2b0d8aac8c84c640",
+    "uploaded_at": "2026-06-08 03:11:15",
+    "files": [
+      "artifact-android/app-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.0-android-x86_64.apk",
+      "artifact-android/互联加速-3.0.0-android.apk",
+      "artifact-linux-amd64/互联加速-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/互联加速-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.0-windows-amd64-setup.exe"
+    ]
   }
 ]
