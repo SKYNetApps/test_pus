@@ -197,5 +197,101 @@
       "artifact-linux-amd64/Sky-3.0.1-linux-amd64.rpm",
       "artifact-windows-amd64/Sky-3.0.1-windows-amd64-setup.exe"
     ]
+  },
+  {
+    "dir": "build_27142544350_20260608_141044",
+    "run_id": "27142544350",
+    "version": "v3.0.2",
+    "build_id": "1f37c57302ed380f",
+    "uploaded_at": "2026-06-08 14:11:28",
+    "files": [
+      "artifact-android/Sky-3.0.2-android-arm64-v8a.apk",
+      "artifact-android/Sky-3.0.2-android-armeabi-v7a.apk",
+      "artifact-android/Sky-3.0.2-android-x86_64.apk",
+      "artifact-android/Sky-3.0.2-android.apk",
+      "artifact-linux-amd64/Sky-3.0.2-linux-amd64.deb",
+      "artifact-linux-amd64/Sky-3.0.2-linux-amd64.rpm",
+      "artifact-windows-amd64/Sky-3.0.2-windows-amd64-setup.exe"
+    ]
+  },
+  {
+    "dir": "build_27147225654_20260608_152605",
+    "run_id": "27147225654",
+    "version": "v3.0.0",
+    "build_id": "a51d3badd68e71e6",
+    "uploaded_at": "2026-06-08 15:26:55",
+    "files": [
+      "artifact-android/app-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.0-android-x86_64.apk",
+      "artifact-android/七星加速-3.0.0-android.apk",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.0-windows-amd64-setup.exe"
+    ]
+  },
+  {
+    "dir": "build_27179499527_20260609_022903",
+    "run_id": "27179499527",
+    "version": "v3.0.2",
+    "build_id": "1574a7bd11c88af2",
+    "uploaded_at": "2026-06-09 02:29:49",
+    "files": [
+      "artifact-android/app-3.0.2-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.2-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.2-android-x86_64.apk",
+      "artifact-android/互联加速-3.0.2-android.apk",
+      "artifact-linux-amd64/互联加速-3.0.2-linux-amd64.deb",
+      "artifact-linux-amd64/互联加速-3.0.2-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.2-windows-amd64-setup.exe"
+    ]
+  },
+  {
+    "dir": "build_27190554221_20260609_073834",
+    "run_id": "27190554221",
+    "version": "v3.0.0",
+    "build_id": "30009e9c16518994",
+    "uploaded_at": "2026-06-09 07:39:19",
+    "files": [
+      "artifact-android/app-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.0-android-x86_64.apk",
+      "artifact-android/互联加速-3.0.0-android.apk",
+      "artifact-linux-amd64/互联加速-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/互联加速-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.0-windows-amd64-setup.exe"
+    ]
+  },
+  {
+    "dir": "build_27191539444_20260609_080022",
+    "run_id": "27191539444",
+    "version": "v3.0.0",
+    "build_id": "912fc88664fc0b5b",
+    "uploaded_at": "2026-06-09 08:01:07",
+    "files": [
+      "artifact-android/app-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.0-android-x86_64.apk",
+      "artifact-android/七星加速-3.0.0-android.apk",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.0-windows-amd64-setup.exe"
+    ]
+  },
+  {
+    "dir": "build_27192381191_20260609_081653",
+    "run_id": "27192381191",
+    "version": "v3.0.0",
+    "build_id": "393d31641e82523e",
+    "uploaded_at": "2026-06-09 08:17:38",
+    "files": [
+      "artifact-android/app-3.0.0-android-arm64-v8a.apk",
+      "artifact-android/app-3.0.0-android-armeabi-v7a.apk",
+      "artifact-android/app-3.0.0-android-x86_64.apk",
+      "artifact-android/七星加速-3.0.0-android.apk",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.deb",
+      "artifact-linux-amd64/七星加速-3.0.0-linux-amd64.rpm",
+      "artifact-windows-amd64/app-3.0.0-windows-amd64-setup.exe"
+    ]
   }
 ]
