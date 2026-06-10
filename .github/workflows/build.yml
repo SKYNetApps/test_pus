@@ -211,7 +211,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       actions: write    # 删除 artifact 需要此权限
-      contents: write   # 写入 deploy_builds.json 需要此权限
 
     steps:
       # ── 下载本次全部平台的 artifact ──────────────────────────────────────
@@ -244,12 +243,18 @@ jobs:
           # 统一使用正斜杠（PowerShell 完全支持，避免多层转义问题）
           BASE="${SSH_REMOTE_BASE%/}"   # 去掉末尾斜杠
           UPLOAD_DIR="${BASE}/${UPLOAD_SUBDIR}"
-          echo "上传目录: $UPLOAD_DIR"
+
+          # 注册敏感路径为日志掩码，后续所有输出自动遮蔽
+          echo "::add-mask::${BASE}"
+          echo "::add-mask::${UPLOAD_DIR}"
+          echo "::add-mask::${UPLOAD_SUBDIR}"
+
+          echo "上传目录已就绪"
 
           # ── 连通性预检 ──────────────────────────────────────────────
           echo "测试 SSH 控制连接..."
           if ! timeout 10 bash -c "echo > /dev/tcp/$SSH_HOST/$SSH_PORT" 2>/dev/null; then
-            echo "❌ 无法连接 $SSH_HOST:$SSH_PORT，请检查 SSH 服务器和防火墙"
+            echo "❌ 无法连接，请检查 SSH 服务器和防火墙"
             exit 1
           fi
           echo "✅ SSH 控制端口可达"
@@ -281,18 +286,21 @@ jobs:
             exit 1
           fi
 
-          echo "✅ SSH 上传完成，目录: $UPLOAD_DIR"
-          # 传递给后续 step（两个变量都传递）
+          echo "✅ SSH 上传完成"
+          # 传递给后续 step（GITHUB_ENV 内容不会出现在日志中）
           echo "UPLOAD_DIR=$UPLOAD_DIR" >> "$GITHUB_ENV"
           echo "UPLOAD_SUBDIR=$UPLOAD_SUBDIR" >> "$GITHUB_ENV"
           # 清理密码变量，防止后续泄漏
           unset SSHPASS
 
-      # ── 回写 deploy_builds.json（追加记录，保留最近 20 条，带重试防 409）──
+      # ── 回写 deploy_builds.json 到私有仓库（追加记录，保留最近 20 条，带重试防 409）──
       - name: Update deploy_builds.json
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONSOLE_REPO_TOKEN }}
+          DEPLOY_REPO: ${{ secrets.DEPLOY_REPO }}
         run: |
+          DEPLOY_FILE="deploy_builds.json"
+
           # 收集本次上传的文件相对路径列表
           FILES=$(find ./dist -type f | sed "s|./dist/||" | sort | jq -R . | jq -s .)
           NEW_ENTRY=$(jq -cn \
@@ -307,7 +315,7 @@ jobs:
           # 最多重试 5 次，应对并发写入时的 409 Conflict
           for i in $(seq 1 5); do
             # 读取当前文件内容和 SHA
-            RESP=$(gh api "repos/${{ github.repository }}/contents/deploy_builds.json" 2>/dev/null || echo '{}')
+            RESP=$(gh api "repos/${DEPLOY_REPO}/contents/${DEPLOY_FILE}" 2>/dev/null || echo '{}')
             EXISTING_SHA=$(echo "$RESP" | jq -r '.sha // empty')
             EXISTING_B64=$(echo "$RESP" | jq -r '.content // empty' | tr -d '\n')
 
@@ -325,21 +333,21 @@ jobs:
 
             if [ -n "$EXISTING_SHA" ]; then
               HTTP=$(gh api --method PUT \
-                "repos/${{ github.repository }}/contents/deploy_builds.json" \
+                "repos/${DEPLOY_REPO}/contents/${DEPLOY_FILE}" \
                 -f message="chore: update deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
                 -f sha="$EXISTING_SHA" \
                 --silent --include 2>&1 | head -1 | awk '{print $2}' || echo '0')
             else
               HTTP=$(gh api --method PUT \
-                "repos/${{ github.repository }}/contents/deploy_builds.json" \
+                "repos/${DEPLOY_REPO}/contents/${DEPLOY_FILE}" \
                 -f message="chore: init deploy_builds [skip ci]" \
                 -f content="$ENCODED" \
                 --silent --include 2>&1 | head -1 | awk '{print $2}' || echo '0')
             fi
 
             if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
-              echo "✅ deploy_builds.json 更新成功（第 $i 次尝试）"
+              echo "✅ deploy_builds.json 更新成功（第 $i 次尝试）→ ${DEPLOY_REPO}"
               break
             fi
 
