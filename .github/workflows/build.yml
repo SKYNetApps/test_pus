@@ -244,9 +244,8 @@ jobs:
           BASE="${SSH_REMOTE_BASE%/}"   # 去掉末尾斜杠
           UPLOAD_DIR="${BASE}/${UPLOAD_SUBDIR}"
 
-          # 注册敏感路径为日志掩码，后续所有输出自动遮蔽
+          # 注册敏感路径为日志掩码（仅 mask BASE，避免 UPLOAD_SUBDIR 被间接干扰）
           echo "::add-mask::${BASE}"
-          echo "::add-mask::${UPLOAD_DIR}"
 
           echo "上传目录已就绪"
 
