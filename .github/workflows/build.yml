@@ -247,7 +247,6 @@ jobs:
           # 注册敏感路径为日志掩码，后续所有输出自动遮蔽
           echo "::add-mask::${BASE}"
           echo "::add-mask::${UPLOAD_DIR}"
-          echo "::add-mask::${UPLOAD_SUBDIR}"
 
           echo "上传目录已就绪"
 
