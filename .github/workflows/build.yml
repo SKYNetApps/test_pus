@@ -150,6 +150,14 @@ jobs:
         if: matrix.platform == 'windows'
         run: choco install innosetup -y
 
+      - name: Download VC++ Runtime (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          curl -L -o windows/packaging/exe/vc_redist.x64.exe \
+            "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          ls -lh windows/packaging/exe/vc_redist.x64.exe
+
       - name: Get Flutter dependencies
         run: |
           flutter --version
