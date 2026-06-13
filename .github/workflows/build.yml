@@ -259,32 +259,24 @@ jobs:
           fi
           echo "✅ SSH 控制端口可达"
 
-          # 在远端一次性创建所有目录（包含子目录）
-          SUBDIRS=$(find ./dist -mindepth 1 -type d | sed "s|./dist/||" | sort -u)
-          ALL_DIRS="$UPLOAD_DIR"
-          for d in $SUBDIRS; do
-            ALL_DIRS="$ALL_DIRS','${UPLOAD_DIR}/${d}"
-          done
-          # 用 printf 构造 PowerShell 命令，避免 bash 在双引号中提前展开 $d
-          PS_MKDIR=$(printf "powershell -Command \"\$dirs='%s'.Split(','); foreach(\$d in \$dirs){ New-Item -ItemType Directory -Force -Path \$d | Out-Null }\"" "$ALL_DIRS")
+          # 在远端创建上传目录
+          PS_MKDIR=$(printf "powershell -Command \"New-Item -ItemType Directory -Force -Path '%s' | Out-Null\"" "$UPLOAD_DIR")
           sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_MKDIR"
 
-          # 逐文件上传
-          FAIL=0
-          while IFS= read -r file; do
-            rel="${file#./dist/}"
-            echo "  ↑ $rel"
-            if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no \
-                "$file" "$SSH_USER@$SSH_HOST:$UPLOAD_DIR/$rel"; then
-              echo "  ❌ 上传失败: $rel"
-              FAIL=1
-            fi
-          done < <(find ./dist -type f | sort)
+          # 打包 dist 目录后单次上传，远端解压（从 N 次 scp 减为 1 次）
+          tar czf /tmp/dist.tar.gz -C ./dist .
+          echo "  📦 打包完成: $(du -h /tmp/dist.tar.gz | cut -f1)"
 
-          if [ "$FAIL" = "1" ]; then
-            echo "❌ 部分文件上传失败"
+          if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no \
+              /tmp/dist.tar.gz "$SSH_USER@$SSH_HOST:$UPLOAD_DIR/dist.tar.gz"; then
+            echo "❌ 上传失败"
             exit 1
           fi
+          echo "  ✅ 上传完成，开始远端解压..."
+
+          # 远端用 PowerShell 调 tar 解压后删除压缩包
+          PS_EXTRACT=$(printf "powershell -Command \"Set-Location '%s'; tar xzf dist.tar.gz; Remove-Item dist.tar.gz\"" "$UPLOAD_DIR")
+          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_EXTRACT"
 
           echo "✅ SSH 上传完成"
           # 传递给后续 step（GITHUB_ENV 内容不会出现在日志中）
