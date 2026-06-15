@@ -265,7 +265,9 @@ jobs:
           sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_MKDIR"
 
           # 打包 dist 目录后单次上传，远端解压（从 N 次 scp 减为 1 次）
-          tar czf /tmp/dist.tar.gz -C ./dist .
+          # --format=posix：把文件名以 UTF-8 存入 pax 扩展头，
+          # 否则 Windows 端 tar.exe(bsdtar) 会按系统代码页解析中文名导致解压失败/404。
+          tar --format=posix -czf /tmp/dist.tar.gz -C ./dist .
           echo "  📦 打包完成: $(du -h /tmp/dist.tar.gz | cut -f1)"
 
           if ! sshpass -e scp -P "$SSH_PORT" -o StrictHostKeyChecking=no \
@@ -276,8 +278,13 @@ jobs:
           echo "  ✅ 上传完成，开始远端解压..."
 
           # 远端用 PowerShell 调 tar 解压后删除压缩包
-          PS_EXTRACT=$(printf "powershell -Command \"Set-Location '%s'; tar xzf dist.tar.gz; Remove-Item dist.tar.gz\"" "$UPLOAD_DIR")
-          sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_EXTRACT"
+          # 检查 $LASTEXITCODE：tar 解压任一文件失败时让命令返回非 0，
+          # 避免「解压失败却静默成功」导致发布出 404 链接。
+          PS_EXTRACT=$(printf "powershell -NoProfile -Command \"Set-Location '%s'; tar xzf dist.tar.gz; if (\$LASTEXITCODE -ne 0) { exit 1 }; Remove-Item dist.tar.gz\"" "$UPLOAD_DIR")
+          if ! sshpass -e ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$PS_EXTRACT"; then
+            echo "❌ 远端解压失败"
+            exit 1
+          fi
 
           echo "✅ SSH 上传完成"
           # 传递给后续 step（GITHUB_ENV 内容不会出现在日志中）
